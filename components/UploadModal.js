@@ -15,7 +15,6 @@ export default function UploadModal() {
   const [chosenCar, setChosenCar] = useState(null);
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
-  const [caption, setCaption] = useState("");
   const [photographer, setPhotographer] = useState("");
   const [location, setLocation] = useState("");
   const [date, setDate] = useState("");
@@ -31,7 +30,6 @@ export default function UploadModal() {
     setChosenCar(prefilledCar);
     setFile(null);
     setPreviewUrl(null);
-    setCaption("");
     setPhotographer("");
     setLocation("");
     setDate("");
@@ -72,7 +70,6 @@ export default function UploadModal() {
       const form = new FormData();
       form.set("carId", chosenCar.id);
       form.set("file", blob, "photo.jpg");
-      form.set("caption", caption.trim());
       form.set("photographer", photographer.trim());
       form.set("location", location.trim());
       form.set("date", date);
@@ -172,10 +169,6 @@ export default function UploadModal() {
             </div>
           </div>
 
-          <div className="field">
-            <label htmlFor="f-caption">Caption</label>
-            <input id="f-caption" type="text" placeholder="e.g. Outbound at Davis, leading a 6-car train" value={caption} onChange={(e) => setCaption(e.target.value)} />
-          </div>
           <div className="field">
             <label htmlFor="f-photographer">Photographer</label>
             <input id="f-photographer" type="text" placeholder="Your name or handle" value={photographer} onChange={(e) => setPhotographer(e.target.value)} />
