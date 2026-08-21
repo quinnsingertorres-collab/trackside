@@ -6,6 +6,22 @@ import { LINE_BY_KEY } from "@/lib/lines";
 import { compressImage } from "@/lib/image";
 import { usePhotos } from "@/lib/PhotosContext";
 
+/** Best-effort AI read of the car number in a photo. Never throws —
+ * callers just get back { number: null, matches: [] } on any failure. */
+async function detectCarNumber(file) {
+  try {
+    const { blob } = await compressImage(file, 1200, 0.75);
+    const form = new FormData();
+    form.set("file", blob, "photo.jpg");
+    const res = await fetch("/api/detect-car-number", { method: "POST", body: form });
+    if (!res.ok) return { number: null, matches: [] };
+    const data = await res.json().catch(() => ({}));
+    return { number: data.number || null, matches: Array.isArray(data.matches) ? data.matches : [] };
+  } catch {
+    return { number: null, matches: [] };
+  }
+}
+
 export default function UploadModal() {
   const { uploadTarget, closeUpload, addLocalPhoto, showToast } = usePhotos();
   const open = uploadTarget !== undefined;
@@ -21,7 +37,10 @@ export default function UploadModal() {
   const [drag, setDrag] = useState(false);
   const [msg, setMsg] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [detecting, setDetecting] = useState(false);
+  const [suggestion, setSuggestion] = useState(null); // { number, matches }
   const fileInputRef = useRef(null);
+  const detectSeq = useRef(0);
 
   useEffect(() => {
     if (!open) return;
@@ -35,6 +54,9 @@ export default function UploadModal() {
     setDate("");
     setMsg(null);
     setSaving(false);
+    setDetecting(false);
+    setSuggestion(null);
+    detectSeq.current += 1;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, uploadTarget]);
 
@@ -56,6 +78,19 @@ export default function UploadModal() {
     setFile(f);
     setPreviewUrl(URL.createObjectURL(f));
     setMsg(null);
+    setSuggestion(null);
+
+    // Auto-suggest the car number from the photo, unless it's already fixed
+    // (e.g. opened via "+ Add photo" on a specific car's page).
+    if (!prefilledCar) {
+      const seq = ++detectSeq.current;
+      setDetecting(true);
+      detectCarNumber(f).then((result) => {
+        if (detectSeq.current !== seq) return; // a newer photo/close superseded this
+        setDetecting(false);
+        if (result.matches.length) setSuggestion(result);
+      });
+    }
   }
 
   async function submit() {
@@ -140,6 +175,44 @@ export default function UploadModal() {
               {chosenCar && (
                 <div className="mono" style={{ fontSize: 14, marginTop: 6, color: "var(--ink-soft)" }}>
                   Selected: {chosenCar.numberDisplay} — {LINE_BY_KEY[chosenCar.line].name}
+                </div>
+              )}
+              {!chosenCar && detecting && (
+                <div style={{ fontSize: 13, marginTop: 6, color: "var(--ink-faint)" }}>
+                  Reading the car number from your photo…
+                </div>
+              )}
+              {!chosenCar && !detecting && suggestion && suggestion.matches.length > 0 && (
+                <div
+                  className="mono"
+                  style={{
+                    fontSize: 13.5,
+                    marginTop: 8,
+                    padding: "8px 10px",
+                    border: "1px solid var(--line)",
+                    borderRadius: 8,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <span style={{ fontFamily: "var(--font-body)" }}>Looks like</span>
+                  {suggestion.matches.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className="btn-ghost"
+                      style={{ padding: "3px 10px", fontSize: 13 }}
+                      onClick={() => {
+                        setChosenCar(c);
+                        setCarQuery("");
+                        setSuggestion(null);
+                      }}
+                    >
+                      {c.numberDisplay} · {LINE_BY_KEY[c.line].name}
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
