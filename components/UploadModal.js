@@ -6,8 +6,6 @@ import { LINE_BY_KEY } from "@/lib/lines";
 import { compressImage } from "@/lib/image";
 import { usePhotos } from "@/lib/PhotosContext";
 
-const PW_KEY = "trackside_upload_password";
-
 export default function UploadModal() {
   const { uploadTarget, closeUpload, addLocalPhoto, showToast } = usePhotos();
   const open = uploadTarget !== undefined;
@@ -21,7 +19,6 @@ export default function UploadModal() {
   const [photographer, setPhotographer] = useState("");
   const [location, setLocation] = useState("");
   const [date, setDate] = useState("");
-  const [password, setPassword] = useState("");
   const [drag, setDrag] = useState(false);
   const [msg, setMsg] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -40,8 +37,6 @@ export default function UploadModal() {
     setDate("");
     setMsg(null);
     setSaving(false);
-    const stored = typeof window !== "undefined" ? window.localStorage.getItem(PW_KEY) : "";
-    setPassword(stored || "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, uploadTarget]);
 
@@ -85,21 +80,13 @@ export default function UploadModal() {
       const res = await fetch("/api/photos", {
         method: "POST",
         body: form,
-        headers: password ? { "x-upload-password": password } : {},
       });
       const data = await res.json().catch(() => ({}));
 
-      if (res.status === 401) {
-        if (typeof window !== "undefined") window.localStorage.removeItem(PW_KEY);
-        setMsg({ text: data.message || "That upload passphrase isn't right.", err: true });
-        setSaving(false);
-        return;
-      }
       if (!res.ok) {
         throw { message: data.message || "Something went wrong saving that photo." };
       }
 
-      if (password && typeof window !== "undefined") window.localStorage.setItem(PW_KEY, password);
       addLocalPhoto(data.photo);
       showToast(`Photo added to ${LINE_BY_KEY[chosenCar.line].name} ${chosenCar.numberDisplay}`);
       closeUpload();
@@ -202,11 +189,6 @@ export default function UploadModal() {
               <label htmlFor="f-date">Date taken</label>
               <input id="f-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
-          </div>
-
-          <div className="field">
-            <label htmlFor="f-password">Upload passphrase</label>
-            <input id="f-password" type="password" placeholder="Ask whoever invited you" value={password} onChange={(e) => setPassword(e.target.value)} />
           </div>
 
           {msg && <div className={`modal-msg ${msg.err ? "err" : "ok"}`}>{msg.text}</div>}

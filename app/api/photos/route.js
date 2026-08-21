@@ -8,13 +8,6 @@ export const runtime = "nodejs";
 const MAX_BYTES = 7 * 1024 * 1024; // server-side backstop; client compresses before sending
 const EXT_BY_TYPE = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 
-function checkPassword(request) {
-  const required = process.env.UPLOAD_PASSWORD;
-  if (!required) return true; // no passphrase configured -> uploads open (e.g. local dev)
-  const supplied = request.headers.get("x-upload-password") || "";
-  return supplied === required;
-}
-
 /** GET /api/photos            -> { photos: [...] } all photos, newest first
  *  GET /api/photos?carId=X    -> { photos: [...] } just that car's photos
  * Public and unauthenticated on purpose — this is the feed another app can read.
@@ -32,13 +25,8 @@ export async function GET(request) {
 
 /** POST /api/photos (multipart/form-data)
  * fields: carId, file, caption?, photographer?, location?, date?
- * header: x-upload-password (when UPLOAD_PASSWORD is configured)
  */
 export async function POST(request) {
-  if (!checkPassword(request)) {
-    return NextResponse.json({ error: "wrong_password", message: "That upload passphrase isn't right." }, { status: 401 });
-  }
-
   let form;
   try {
     form = await request.formData();

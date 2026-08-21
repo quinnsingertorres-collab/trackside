@@ -6,8 +6,6 @@ import { LINE_BY_KEY } from "@/lib/lines";
 import { usePhotos } from "@/lib/PhotosContext";
 import Lightbox from "@/components/Lightbox";
 
-const PW_KEY = "trackside_upload_password";
-
 export default function CarView({ car }) {
   const l = LINE_BY_KEY[car.line];
   const { photosByCar, openUpload, removeLocalPhoto, showToast } = usePhotos();
@@ -20,17 +18,10 @@ export default function CarView({ car }) {
     const photo = photos[lbIndex];
     if (!photo) return;
     setDeleting(true);
-    const password = typeof window !== "undefined" ? window.localStorage.getItem(PW_KEY) || "" : "";
     try {
       const res = await fetch(`/api/photos/${photo.id}`, {
         method: "DELETE",
-        headers: password ? { "x-upload-password": password } : {},
       });
-      if (res.status === 401) {
-        showToast("Enter the gallery passphrase (via Add photo) before removing photos.");
-        setDeleting(false);
-        return;
-      }
       if (!res.ok) {
         showToast("Couldn't remove that photo — try again.");
         setDeleting(false);
