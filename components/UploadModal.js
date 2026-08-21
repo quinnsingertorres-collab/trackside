@@ -41,6 +41,7 @@ export default function UploadModal() {
   const [suggestion, setSuggestion] = useState(null); // { number, matches }
   const fileInputRef = useRef(null);
   const detectSeq = useRef(0);
+  const handleFileRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
@@ -59,6 +60,33 @@ export default function UploadModal() {
     detectSeq.current += 1;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, uploadTarget]);
+
+  // Let people paste a screenshot/copied photo (Cmd/Ctrl+V) straight into the
+  // form, anywhere in the modal — not just when the dropzone is focused.
+  useEffect(() => {
+    if (!open) return;
+    function onPaste(e) {
+      const items = e.clipboardData && e.clipboardData.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.kind === "file" && item.type.startsWith("image/")) {
+          const f = item.getAsFile();
+          if (f) {
+            e.preventDefault();
+            handleFileRef.current && handleFileRef.current(f);
+          }
+          break;
+        }
+      }
+    }
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [open]);
+
+  // Keep the paste listener's callback current without re-subscribing it.
+  useEffect(() => {
+    handleFileRef.current = handleFile;
+  });
 
   if (!open) return null;
 
@@ -238,7 +266,7 @@ export default function UploadModal() {
                 style={{ display: "none" }}
                 onChange={(e) => e.target.files[0] && handleFile(e.target.files[0])}
               />
-              {previewUrl ? <img src={previewUrl} alt="" /> : "Click to choose a photo, or drag one here"}
+              {previewUrl ? <img src={previewUrl} alt="" /> : "Click to choose a photo, drag one here, or paste (⌘V)"}
             </div>
           </div>
 
