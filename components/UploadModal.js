@@ -30,7 +30,6 @@ export default function UploadModal() {
   useEffect(() => {
     if (!open) return;
     // Reset the form each time the modal opens for a (possibly different) car.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCarQuery("");
     setChosenCar(prefilledCar);
     setFile(null);

@@ -9,7 +9,6 @@ export default function Toast() {
 
   useEffect(() => {
     if (!toast) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setVisible(true);
     const t = setTimeout(() => setVisible(false), 3200);
     return () => clearTimeout(t);
