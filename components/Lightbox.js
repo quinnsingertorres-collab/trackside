@@ -3,10 +3,11 @@
 import { useEffect } from "react";
 import { timeAgo } from "@/lib/image";
 
-export default function Lightbox({ photos, index, onIndexChange, onClose, canDelete, onDelete, deleting }) {
+export default function Lightbox({ photos, index, onIndexChange, onClose, canDelete, onDelete, deleting, canEdit, onEdit, paused }) {
   const p = photos[index];
 
   useEffect(() => {
+    if (paused) return undefined;
     function onKey(e) {
       if (e.key === "Escape") onClose();
       if (e.key === "ArrowLeft" && photos.length > 1) onIndexChange((index - 1 + photos.length) % photos.length);
@@ -14,7 +15,7 @@ export default function Lightbox({ photos, index, onIndexChange, onClose, canDel
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [index, photos.length, onClose, onIndexChange]);
+  }, [index, photos.length, onClose, onIndexChange, paused]);
 
   if (!p) return null;
 
@@ -25,6 +26,9 @@ export default function Lightbox({ photos, index, onIndexChange, onClose, canDel
         <button className="lb-del" onClick={onDelete} disabled={deleting}>
           {deleting ? "Removing…" : "Remove photo"}
         </button>
+      )}
+      {canEdit && (
+        <button className="lb-edit" onClick={onEdit}>Edit photo</button>
       )}
       {photos.length > 1 && (
         <>
@@ -38,6 +42,7 @@ export default function Lightbox({ photos, index, onIndexChange, onClose, canDel
           <div className="cap">{p.caption || "Untitled"}</div>
           <div className="sub">
             {[p.photographer, p.location, p.date].filter(Boolean).join(" · ") || timeAgo(p.uploadedAt)}
+            {p.edits ? " · edited" : ""}
           </div>
         </div>
       </div>

@@ -5,6 +5,7 @@ import { ROSTER } from "@/lib/roster";
 import { LINE_BY_KEY } from "@/lib/lines";
 import { compressImage } from "@/lib/image";
 import { usePhotos } from "@/lib/PhotosContext";
+import PhotoEditor from "@/components/PhotoEditor";
 
 const MAX_ITEMS = 20;
 
@@ -29,9 +30,14 @@ function newId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+function releaseItem(it) {
+  if (it.previewUrl) URL.revokeObjectURL(it.previewUrl);
+  if (it.edited && it.edited.url) URL.revokeObjectURL(it.edited.url);
+}
+
 /** One row in the multi-photo queue: a thumbnail plus (when the car isn't
  * already fixed for the whole batch) its own car search + AI suggestion. */
-function QueueRow({ item, locked, onRemove, onQueryChange, onPick }) {
+function QueueRow({ item, locked, onRemove, onQueryChange, onPick, onEdit }) {
   const q = item.carQuery.trim().toLowerCase();
   const matches = !locked && q
     ? ROSTER.filter((c) => c.numberDisplay.toLowerCase().includes(q) || c.series.toLowerCase().includes(q)).slice(0, 6)
@@ -40,7 +46,14 @@ function QueueRow({ item, locked, onRemove, onQueryChange, onPick }) {
   return (
     <div className={`queue-row${item.status === "done" ? " done" : ""}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img className="queue-thumb" src={item.previewUrl} alt="" />
+      <div>
+        <img className="queue-thumb" src={item.edited ? item.edited.url : item.previewUrl} alt="" />
+        {item.status !== "uploading" && item.status !== "done" && (
+          <button type="button" className="queue-edit" onClick={() => onEdit(item.id)}>
+            {item.edited ? "Edited · adjust" : "Edit"}
+          </button>
+        )}
+      </div>
       <div className="queue-main">
         <div className="queue-top">
           {!locked &&
@@ -117,6 +130,7 @@ export default function UploadModal() {
   const [drag, setDrag] = useState(false);
   const [msg, setMsg] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const fileInputRef = useRef(null);
   const itemsRef = useRef(items);
   const addFilesRef = useRef(null);
@@ -129,8 +143,9 @@ export default function UploadModal() {
     if (!open) return;
     // Reset the form each time the modal opens (possibly for a different
     // car), releasing any preview URLs left over from the last session.
-    itemsRef.current.forEach((it) => it.previewUrl && URL.revokeObjectURL(it.previewUrl));
+    itemsRef.current.forEach(releaseItem);
     setItems([]);
+    setEditingId(null);
     setPhotographer("");
     setLocation("");
     setDate("");
@@ -187,6 +202,7 @@ export default function UploadModal() {
       id: newId(),
       file: f,
       previewUrl: URL.createObjectURL(f),
+      edited: null, // { blob, url, adj } once the photo has been through the editor
       carQuery: "",
       chosenCar: prefilledCar,
       detecting: false,
@@ -211,13 +227,24 @@ export default function UploadModal() {
   function removeItem(id) {
     setItems((prev) => {
       const it = prev.find((p) => p.id === id);
-      if (it && it.previewUrl) URL.revokeObjectURL(it.previewUrl);
+      if (it) releaseItem(it);
       return prev.filter((p) => p.id !== id);
     });
   }
 
   function updateItemQuery(id, q) {
     setItems((prev) => prev.map((p) => (p.id === id ? { ...p, carQuery: q } : p)));
+  }
+
+  function applyEdit(blob, adj) {
+    setItems((prev) =>
+      prev.map((p) => {
+        if (p.id !== editingId) return p;
+        if (p.edited) URL.revokeObjectURL(p.edited.url);
+        return { ...p, edited: { blob, adj, url: URL.createObjectURL(blob) } };
+      })
+    );
+    setEditingId(null);
   }
 
   function pickItemCar(id, car) {
@@ -227,7 +254,7 @@ export default function UploadModal() {
   }
 
   function closeAndReset() {
-    itemsRef.current.forEach((it) => it.previewUrl && URL.revokeObjectURL(it.previewUrl));
+    itemsRef.current.forEach(releaseItem);
     closeUpload();
   }
 
@@ -244,7 +271,8 @@ export default function UploadModal() {
     for (const it of pendingItems) {
       setItems((prev) => prev.map((p) => (p.id === it.id ? { ...p, status: "uploading", error: null } : p)));
       try {
-        const { blob } = await compressImage(it.file, 1600, 0.82);
+        // An edited photo is already rendered at upload size; otherwise compress the original as before.
+        const blob = it.edited ? it.edited.blob : (await compressImage(it.file, 1600, 0.82)).blob;
         if (blob.size > 6.5 * 1024 * 1024) {
           throw { message: "That photo is too large even after compression — try a smaller image." };
         }
@@ -362,6 +390,7 @@ export default function UploadModal() {
                     onRemove={removeItem}
                     onQueryChange={updateItemQuery}
                     onPick={pickItemCar}
+                    onEdit={setEditingId}
                   />
                 ))}
               </div>
@@ -410,6 +439,20 @@ export default function UploadModal() {
           </div>
         </div>
       </div>
+      {editingId && (() => {
+        const it = items.find((p) => p.id === editingId);
+        return it ? (
+          <PhotoEditor
+            key={it.id}
+            src={it.previewUrl}
+            initial={it.edited ? it.edited.adj : undefined}
+            title="Edit photo"
+            applyLabel="Use edited photo"
+            onApply={applyEdit}
+            onCancel={() => setEditingId(null)}
+          />
+        ) : null;
+      })()}
     </div>
   );
 }

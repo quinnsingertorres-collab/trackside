@@ -5,13 +5,16 @@ import { useState } from "react";
 import { LINE_BY_KEY } from "@/lib/lines";
 import { usePhotos } from "@/lib/PhotosContext";
 import Lightbox from "@/components/Lightbox";
+import PhotoEditor from "@/components/PhotoEditor";
 
 export default function CarView({ car }) {
   const l = LINE_BY_KEY[car.line];
-  const { photosByCar, openUpload, removeLocalPhoto, showToast } = usePhotos();
+  const { photosByCar, openUpload, removeLocalPhoto, updateLocalPhoto, showToast } = usePhotos();
   const photos = photosByCar.get(car.id) || [];
   const [lbIndex, setLbIndex] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [editing, setEditing] = useState(null); // the photo being edited, or null
+  const [reverting, setReverting] = useState(false);
   const delivering = car.status === "delivering";
 
   async function handleDelete() {
@@ -34,6 +37,39 @@ export default function CarView({ car }) {
       showToast("Couldn't remove that photo — try again.");
     }
     setDeleting(false);
+  }
+
+  async function saveEdit(blob, edits) {
+    const form = new FormData();
+    form.set("file", blob, "photo.jpg");
+    form.set("edits", JSON.stringify(edits));
+    const res = await fetch(`/api/photos/${editing.id}`, { method: "PUT", body: form });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || "Couldn't save that edit — try again.");
+    updateLocalPhoto(data.photo);
+    setEditing(null);
+    showToast("Edit saved");
+  }
+
+  async function revertEdit() {
+    if (!editing || reverting) return;
+    setReverting(true);
+    try {
+      const form = new FormData();
+      form.set("revert", "1");
+      const res = await fetch(`/api/photos/${editing.id}`, { method: "PUT", body: form });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(data.message || "Couldn't revert — try again.");
+      } else {
+        updateLocalPhoto(data.photo);
+        setEditing(null);
+        showToast("Reverted to the original");
+      }
+    } catch {
+      showToast("Couldn't revert — try again.");
+    }
+    setReverting(false);
   }
 
   return (
@@ -96,6 +132,28 @@ export default function CarView({ car }) {
           canDelete
           onDelete={handleDelete}
           deleting={deleting}
+          canEdit
+          onEdit={() => setEditing(photos[lbIndex])}
+          paused={!!editing}
+        />
+      )}
+
+      {editing && (
+        <PhotoEditor
+          key={editing.id}
+          src={`/api/photos/${editing.id}/image?original=1`}
+          initial={editing.edits}
+          title={`Edit photo — ${car.numberDisplay}`}
+          applyLabel="Save edit"
+          onApply={saveEdit}
+          onCancel={() => setEditing(null)}
+          extra={
+            editing.originalPath ? (
+              <button type="button" className="btn-ghost" onClick={revertEdit} disabled={reverting}>
+                {reverting ? "Reverting…" : "Revert to original"}
+              </button>
+            ) : null
+          }
         />
       )}
     </>

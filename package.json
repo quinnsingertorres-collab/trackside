@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node lib/image-adjust.test.mjs && node test/photos-store-edit.mjs"
   },
   "dependencies": {
     "@vercel/blob": "^2.8.0",
