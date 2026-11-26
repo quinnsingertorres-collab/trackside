@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ROSTER } from "@/lib/roster";
 import { LINE_BY_KEY } from "@/lib/lines";
 import { compressImage } from "@/lib/image";
@@ -119,7 +119,20 @@ function QueueRow({ item, locked, onRemove, onQueryChange, onPick, onEdit }) {
 }
 
 export default function UploadModal() {
-  const { uploadTarget, closeUpload, addLocalPhoto, showToast } = usePhotos();
+  const { uploadTarget, closeUpload, addLocalPhoto, showToast, photos } = usePhotos();
+  // Every photographer name used before, most-used first (case-insensitive de-dupe).
+  const photographers = useMemo(() => {
+    const counts = new Map();
+    for (const p of photos || []) {
+      const n = (p.photographer || "").trim();
+      if (!n) continue;
+      const k = n.toLowerCase();
+      const c = counts.get(k) || { name: n, n: 0 };
+      c.n++;
+      counts.set(k, c);
+    }
+    return [...counts.values()].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name)).map((c) => c.name);
+  }, [photos]);
   const open = uploadTarget !== undefined;
   const prefilledCar = uploadTarget || null;
 
@@ -405,7 +418,12 @@ export default function UploadModal() {
               placeholder="Your name or handle"
               value={photographer}
               onChange={(e) => setPhotographer(e.target.value)}
+              list="photographer-list"
+              autoComplete="off"
             />
+            <datalist id="photographer-list">
+              {photographers.map((n) => <option key={n} value={n} />)}
+            </datalist>
           </div>
           <div style={{ display: "flex", gap: 10 }}>
             <div className="field" style={{ flex: 1 }}>
